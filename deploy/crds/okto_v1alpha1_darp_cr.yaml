@@ -1,0 +1,7 @@
+apiVersion: okto.io/v1alpha1
+kind: Darp
+metadata:
+  name: example-darp
+spec:
+  size: 1
+  rootCaSecretName: "darp-root-ca-certs"
