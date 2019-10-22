@@ -110,3 +110,49 @@ func (ca *CACerts) generateCertificates(serviceName string) (crt []byte, key []b
 	key = certPrivKeyPEM.Bytes()
 	return crt, key, nil
 }
+
+func (ca *CACerts) loadRootCertificates() (err error) {
+
+	caBlock, _ := pem.Decode(ca.CAPem)
+	keyBlock, _ := pem.Decode(ca.CAPrivPem)
+	ca.CA, err = x509.ParseCertificate(caBlock.Bytes)
+	if err != nil {
+		log.Error(err, "failed to parse root crt")
+		return err
+	}
+	ca.CAPrivateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		log.Error(err, "failed to parse root key")
+		return err
+	}
+	return nil
+}
+
+func (ca *CACerts) validateCertificates() {
+	// First, create the set of root certificates. For this example we only
+	// have one. It's also possible to omit this in order to use the
+	// default root set of the current operating system.
+	//roots := x509.NewCertPool()
+	//ok := roots.AppendCertsFromPEM([]byte(rootPEM))
+	//if !ok {
+	//	panic("failed to parse root certificate")
+	//}
+	//
+	//block, _ := pem.Decode([]byte(certPEM))
+	//if block == nil {
+	//	panic("failed to parse certificate PEM")
+	//}
+	//cert, err := x509.ParseCertificate(block.Bytes)
+	//if err != nil {
+	//	panic("failed to parse certificate: " + err.Error())
+	//}
+	//
+	//opts := x509.VerifyOptions{
+	//	DNSName: "mail.google.com",
+	//	Roots:   roots,
+	//}
+	//
+	//if _, err := cert.Verify(opts); err != nil {
+	//	panic("failed to verify certificate: " + err.Error())
+	//}
+}

@@ -29,14 +29,23 @@ spec:
           type: object
         spec:
           properties:
-            rootCaSecretName:
+            certsMountPath:
+              type: string
+            rootCaSecret:
+              type: string
+            serverCertsSecret:
+              type: string
+            serverConfigMap:
               type: string
             size:
               format: int64
               type: integer
           required:
           - size
-          - rootCaSecretName
+          - rootCaSecret
+          - serverCertsSecret
+          - serverConfigMap
+          - certsMountPath
           type: object
         status:
           type: object

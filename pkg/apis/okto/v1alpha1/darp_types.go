@@ -10,8 +10,11 @@ import (
 // DarpSpec defines the desired state of Darp
 // +k8s:openapi-gen=true
 type DarpSpec struct {
-	Size             int    `json:"size"`
-	RootCaSecretName string `json:"rootCaSecretName"`
+	Size              int    `json:"size"`
+	RootCaSecret      string `json:"rootCaSecret"`
+	ServerCertsSecret string `json:"serverCertsSecret"`
+	ServerConfigMap   string `json:"serverConfigMap"`
+	CertsMountPath    string `json:"certsMountPath"`
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html

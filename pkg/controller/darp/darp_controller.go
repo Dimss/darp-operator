@@ -2,16 +2,16 @@ package darp
 
 import (
 	"context"
-	"github.com/openshift/api/route/v1"
+	"fmt"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	oktov1alpha1 "github.com/darp-operator/pkg/apis/okto/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	//"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -21,7 +21,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	routev1 "github.com/openshift/api/route/v1"
 )
 
 var log = logf.Log.WithName("controller_darp")
@@ -106,9 +105,9 @@ func (r *ReconcileDarp) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
-	//Check if Root CA certs secret already exists, if not create a new one
+	// Check if Root CA certs secret already exists, if not create a new one
 	rootCaCertsSecret := &corev1.Secret{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Spec.RootCaSecretName, Namespace: darp.Namespace}, rootCaCertsSecret)
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Spec.RootCaSecret, Namespace: darp.Namespace}, rootCaCertsSecret)
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new Root CA Secret
 		rootCaCert, err := r.rootCaSecretForDarp(darp)
@@ -124,50 +123,68 @@ func (r *ReconcileDarp) Reconcile(request reconcile.Request) (reconcile.Result, 
 		}
 		return reconcile.Result{Requeue: true}, nil
 	} else if err != nil {
-		reqLogger.Error(err, "Failed to get Deployment.")
+		reqLogger.Error(err, "Failed to get Root CA Secret.")
 		return reconcile.Result{}, err
 	}
-	// Define a new Pod object
-	//route := newRouteForCR(darp)
-	//
-	//// Set Darp darp as the owner and controller
-	//if err := controllerutil.SetControllerReference(darp, route, r.scheme); err != nil {
-	//	return reconcile.Result{}, err
-	//}
-	//
-	////Check if this Route already exists
-	//found := &routev1.Route{}
-	//err = r.client.Get(context.TODO(), types.NamespacedName{Name: route.Name, Namespace: route.Namespace}, found)
-	//if err != nil && errors.IsNotFound(err) {
-	//	reqLogger.Info("Creating a new Route", "Route.Namespace", route.Namespace, "Route.Name", route.Name)
-	//	err = r.client.Create(context.TODO(), route)
-	//	if err != nil {
-	//		return reconcile.Result{}, err
-	//	}
-	//	// Pod created successfully - don't requeue
-	//	return reconcile.Result{}, nil
-	//} else if err != nil {
-	//	return reconcile.Result{}, err
-	//}
 
-	// Pod already exists - don't requeue
-	//reqLogger.Info("Skip reconcile: Route already exists", "Route.Namespace", found.Namespace, "Route.Name", found.Name)
+	// Check if server certs secret already exists, if not create a new one
+	serverCertsSecret := &corev1.Secret{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Spec.ServerCertsSecret, Namespace: darp.Namespace}, serverCertsSecret)
+	if err != nil && errors.IsNotFound(err) {
+		proxyServerCerts, err := r.serverCertsForDarp(darp)
+		if err != nil {
+			reqLogger.Error(err, "error getting server certs secret")
+			return reconcile.Result{}, err
+		}
+		reqLogger.Info("Creating a new Root CA Secret.", "Secret.Namespace", serverCertsSecret.Namespace, "Secret.Name", serverCertsSecret.Name)
+		err = r.client.Create(context.TODO(), proxyServerCerts)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new Server Certs secret.", "Secret.Namespace", serverCertsSecret.Namespace, "Secret.Name", serverCertsSecret.Name)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get Server Secret.")
+		return reconcile.Result{}, err
+	}
+
+	//Check if server config map already exists, if not create a new one
+	serverConfigMap := &corev1.ConfigMap{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Spec.ServerConfigMap, Namespace: darp.Namespace}, serverConfigMap)
+	if err != nil && errors.IsNotFound(err) {
+		serverConf, err := r.configMapForDarp(darp)
+		if err != nil {
+			reqLogger.Error(err, "error getting server configmap")
+			return reconcile.Result{}, err
+		}
+		reqLogger.Info("Creating a new server config map.", "ConfigMap.Namespace", serverConf.Namespace, "ConfigMap.Name", serverConf.Name)
+		err = r.client.Create(context.TODO(), serverConf)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new Server ConfigMap.", "ConfigMap.Namespace", serverConf.Namespace, "ConfigMap.Name", serverConf.Name)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get server configmap.")
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileDarp) rootCaSecretForDarp(depr *oktov1alpha1.Darp) (*corev1.Secret, error) {
+func (r *ReconcileDarp) rootCaSecretForDarp(darp *oktov1alpha1.Darp) (*corev1.Secret, error) {
 	caCerts := CACerts{}
 	if err := caCerts.generateRootCerts(); err != nil {
 		log.Error(err, "Error during creating root certificates")
 		return nil, err
 	}
 	labels := map[string]string{
-		"app": depr.Name,
+		"app": darp.Name,
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "darp-root-ca-certs",
-			Namespace: depr.Namespace,
+			Name:      darp.Spec.RootCaSecret,
+			Namespace: darp.Namespace,
 			Labels:    labels,
 		},
 		StringData: map[string]string{
@@ -175,47 +192,75 @@ func (r *ReconcileDarp) rootCaSecretForDarp(depr *oktov1alpha1.Darp) (*corev1.Se
 			"key": string(caCerts.CAPrivPem),
 		},
 	}
-	if err := controllerutil.SetControllerReference(depr, secret, r.scheme); err != nil {
+	if err := controllerutil.SetControllerReference(darp, secret, r.scheme); err != nil {
 		log.Error(err, "Error set controller reference for root ca secret")
 		return nil, err
 	}
 	return secret, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newRouteForCR(cr *oktov1alpha1.Darp) *routev1.Route {
-	labels := map[string]string{
-		"app": cr.Name,
+func (r *ReconcileDarp) serverCertsForDarp(darp *oktov1alpha1.Darp) (*corev1.Secret, error) {
+
+	rootCaCertsSecret := &corev1.Secret{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Spec.RootCaSecret, Namespace: darp.Namespace}, rootCaCertsSecret)
+	if err != nil && errors.IsNotFound(err) {
+		log.Error(err, "Root CA Certificate Secret not found")
+		return nil, err
 	}
-	return &v1.Route{
+	caCerts := CACerts{
+		CAPem:     rootCaCertsSecret.Data["crt"],
+		CAPrivPem: rootCaCertsSecret.Data["key"],
+	}
+	if err := caCerts.loadRootCertificates(); err != nil {
+		log.Error(err, "Failed to load root certificates ")
+		return nil, err
+	}
+	crt, key, err := caCerts.generateCertificates(darp.Name)
+	if err != nil {
+		log.Error(err, "Failed to generate server certificates")
+		return nil, err
+	}
+	labels := map[string]string{
+		"app": darp.Name,
+	}
+	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-route",
-			Namespace: cr.Namespace,
+			Name:      darp.Spec.ServerCertsSecret,
+			Namespace: darp.Namespace,
 			Labels:    labels,
 		},
-		Spec: routev1.RouteSpec{
-			TLS: &routev1.TLSConfig{
-				Termination: routev1.TLSTerminationEdge,
-			},
-			To: routev1.RouteTargetReference{
-				Kind: "Service", Name: cr.Name + "-route",
-			},
+		StringData: map[string]string{
+			"crt": string(crt),
+			"key": string(key),
 		},
 	}
-	//return &corev1.Pod{
-	//	ObjectMeta: metav1.ObjectMeta{
-	//		Name:      cr.Name + "-pod",
-	//		Namespace: cr.Namespace,
-	//		Labels:    labels,
-	//	},
-	//	Spec: corev1.PodSpec{
-	//		Containers: []corev1.Container{
-	//			{
-	//				Name:    "busybox",
-	//				Image:   "busybox",
-	//				Command: []string{"sleep", "3600"},
-	//			},
-	//		},
-	//	},
-	//}
+	if err := controllerutil.SetControllerReference(darp, secret, r.scheme); err != nil {
+		log.Error(err, "Error set controller reference for root ca secret")
+		return nil, err
+	}
+	return secret, nil
+}
+
+func (r *ReconcileDarp) configMapForDarp(darp *oktov1alpha1.Darp) (*corev1.ConfigMap, error) {
+	labels := map[string]string{
+		"app": darp.Name,
+	}
+	data := map[string]string{
+		"config.json": fmt.Sprintf("{\"http\": {\"crt\": \"%v/crt\",\"key\": \"%v/key\"},\"upstreams\": []}",
+			darp.Spec.CertsMountPath,
+			darp.Spec.CertsMountPath),
+	}
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      darp.Spec.ServerConfigMap,
+			Namespace: darp.Namespace,
+			Labels:    labels,
+		},
+		Data: data,
+	}
+	if err := controllerutil.SetControllerReference(darp, configMap, r.scheme); err != nil {
+		log.Error(err, "Error set controller reference for root ca secret")
+		return nil, err
+	}
+	return configMap, nil
 }

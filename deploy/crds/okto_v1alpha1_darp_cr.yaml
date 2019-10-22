@@ -4,4 +4,7 @@ metadata:
   name: example-darp
 spec:
   size: 1
-  rootCaSecretName: "darp-root-ca-certs"
+  rootCaSecret: "darp-ca-certs"
+  serverCertsSecret: "darp-server-certs"
+  serverConfigMap: "server-configs"
+  certsMountPath: "/go/bin/certs"
