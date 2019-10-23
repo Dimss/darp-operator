@@ -96,8 +96,20 @@ func schema_pkg_apis_okto_v1alpha1_DarpSpec(ref common.ReferenceCallback) common
 							Format: "",
 						},
 					},
+					"confMountPath": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"image": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 				},
-				Required: []string{"size", "rootCaSecret", "serverCertsSecret", "serverConfigMap", "certsMountPath"},
+				Required: []string{"size", "rootCaSecret", "serverCertsSecret", "serverConfigMap", "certsMountPath", "confMountPath", "image"},
 			},
 		},
 		Dependencies: []string{},

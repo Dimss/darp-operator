@@ -31,6 +31,10 @@ spec:
           properties:
             certsMountPath:
               type: string
+            confMountPath:
+              type: string
+            image:
+              type: string
             rootCaSecret:
               type: string
             serverCertsSecret:
@@ -46,6 +50,8 @@ spec:
           - serverCertsSecret
           - serverConfigMap
           - certsMountPath
+          - confMountPath
+          - image
           type: object
         status:
           type: object

@@ -7,4 +7,6 @@ spec:
   rootCaSecret: "darp-ca-certs"
   serverCertsSecret: "darp-server-certs"
   serverConfigMap: "server-configs"
-  certsMountPath: "/go/bin/certs"
+  certsMountPath: "/go/certs"
+  confMountPath: "/go/config"
+  image: "docker.io/dimssss/darp:0.1"

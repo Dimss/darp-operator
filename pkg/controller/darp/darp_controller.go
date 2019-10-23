@@ -169,6 +169,27 @@ func (r *ReconcileDarp) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
+	//Check if deployment already exists, if not create a new one
+	deployment := &appsv1.Deployment{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Name, Namespace: darp.Namespace}, deployment)
+	if err != nil && errors.IsNotFound(err) {
+		serverDeployment, err := r.deploymentForDarp(darp)
+		if err != nil {
+			reqLogger.Error(err, "error getting server deployment")
+			return reconcile.Result{}, err
+		}
+		reqLogger.Info("Creating a new server deployment.", "Deployment.Namespace", serverDeployment.Namespace, "Deployment.Name", serverDeployment.Name)
+		err = r.client.Create(context.TODO(), serverDeployment)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new Server Deployment.", "Deployment.Namespace", serverDeployment.Namespace, "Deployment.Name", serverDeployment.Name)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get server deployment.")
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
@@ -235,7 +256,7 @@ func (r *ReconcileDarp) serverCertsForDarp(darp *oktov1alpha1.Darp) (*corev1.Sec
 		},
 	}
 	if err := controllerutil.SetControllerReference(darp, secret, r.scheme); err != nil {
-		log.Error(err, "Error set controller reference for root ca secret")
+		log.Error(err, "Error set controller reference for server certs")
 		return nil, err
 	}
 	return secret, nil
@@ -246,7 +267,7 @@ func (r *ReconcileDarp) configMapForDarp(darp *oktov1alpha1.Darp) (*corev1.Confi
 		"app": darp.Name,
 	}
 	data := map[string]string{
-		"config.json": fmt.Sprintf("{\"http\": {\"crt\": \"%v/crt\",\"key\": \"%v/key\"},\"upstreams\": []}",
+		"config.json": fmt.Sprintf("{\"http\": {\"crt\":\"%v/crt\",\"key\":\"%v/key\"},\"upstreams\": []}",
 			darp.Spec.CertsMountPath,
 			darp.Spec.CertsMountPath),
 	}
@@ -259,8 +280,85 @@ func (r *ReconcileDarp) configMapForDarp(darp *oktov1alpha1.Darp) (*corev1.Confi
 		Data: data,
 	}
 	if err := controllerutil.SetControllerReference(darp, configMap, r.scheme); err != nil {
-		log.Error(err, "Error set controller reference for root ca secret")
+		log.Error(err, "Error set controller reference for config map")
 		return nil, err
 	}
 	return configMap, nil
+}
+
+func (r *ReconcileDarp) deploymentForDarp(darp *oktov1alpha1.Darp) (*appsv1.Deployment, error) {
+	var replicas int32
+	replicas = 1
+	labels := map[string]string{
+		"app": darp.Name,
+	}
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      darp.Name,
+			Namespace: darp.Namespace,
+			Labels:    labels,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": darp.Name},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   darp.Name,
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:            darp.Name,
+							Image:           darp.Spec.Image,
+							//Command:         []string{"/bin/sh", "-c", "sleep 3600"},
+							ImagePullPolicy: corev1.PullAlways,
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 8080,
+								},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "certs",
+									MountPath: darp.Spec.CertsMountPath,
+								},
+								{
+									Name:      "config",
+									MountPath: darp.Spec.ConfMountPath,
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "certs",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName: darp.Spec.ServerCertsSecret,
+								},
+							},
+						},
+						{
+							Name: "config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: darp.Spec.ServerConfigMap,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := controllerutil.SetControllerReference(darp, dep, r.scheme); err != nil {
+		log.Error(err, "Error set controller reference for server deployment")
+		return nil, err
+	}
+	return dep, nil
 }
