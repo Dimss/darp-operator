@@ -1,0 +1,9 @@
+#!/bin/ash
+set -x
+mv /tmp/src /go/src/darp-operator
+cd /go/src/darp-operator
+export GO111MODULE=on
+echo "Building sources..."
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -x -o /go/bin/darp-operator -mod vendor cmd/manager/main.go
+rm -fr /go/src/darp-operator
+ls -all /go/bin

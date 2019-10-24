@@ -1,0 +1,3 @@
+#!/bin/ash
+set -x
+darp-operator
