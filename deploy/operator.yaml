@@ -15,8 +15,7 @@ spec:
       serviceAccountName: darp-operator
       containers:
         - name: darp-operator
-          # Replace this with the built image name
-          image: REPLACE_IMAGE
+          image: "docker.io/dimssss/darp-operator:0.1"
           command:
           - darp-operator
           imagePullPolicy: Always

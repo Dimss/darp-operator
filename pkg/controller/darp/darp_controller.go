@@ -190,6 +190,27 @@ func (r *ReconcileDarp) Reconcile(request reconcile.Request) (reconcile.Result, 
 		return reconcile.Result{}, err
 	}
 
+	//Check if service already exists, if not create a new one
+	service := &corev1.Service{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{Name: darp.Name, Namespace: darp.Namespace}, service)
+	if err != nil && errors.IsNotFound(err) {
+		serverService, err := r.serviceForDarp(darp)
+		if err != nil {
+			reqLogger.Error(err, "error getting server service")
+			return reconcile.Result{}, err
+		}
+		reqLogger.Info("Creating a new service.", "Service.Namespace", serverService.Namespace, "Service.Name", serverService.Name)
+		err = r.client.Create(context.TODO(), serverService)
+		if err != nil {
+			reqLogger.Error(err, "Failed to create new Server Service.", "Service.Namespace", serverService.Namespace, "Service.Name", serverService.Name)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{Requeue: true}, nil
+	} else if err != nil {
+		reqLogger.Error(err, "Failed to get server service.")
+		return reconcile.Result{}, err
+	}
+
 	return reconcile.Result{}, nil
 }
 
@@ -311,8 +332,8 @@ func (r *ReconcileDarp) deploymentForDarp(darp *oktov1alpha1.Darp) (*appsv1.Depl
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:  darp.Name,
-							Image: darp.Spec.Image,
+							Name:            darp.Name,
+							Image:           darp.Spec.Image,
 							ImagePullPolicy: corev1.PullAlways,
 							Ports: []corev1.ContainerPort{
 								{
@@ -360,4 +381,31 @@ func (r *ReconcileDarp) deploymentForDarp(darp *oktov1alpha1.Darp) (*appsv1.Depl
 		return nil, err
 	}
 	return dep, nil
+}
+
+func (r *ReconcileDarp) serviceForDarp(darp *oktov1alpha1.Darp) (*corev1.Service, error) {
+	labels := map[string]string{
+		"app": darp.Name,
+	}
+	service := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      darp.Name,
+			Namespace: darp.Namespace,
+			Labels:    labels,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: map[string]string{"app": darp.Name},
+			Ports: []corev1.ServicePort{
+				{
+					Name: "https",
+					Port: 8080,
+				},
+			},
+		},
+	}
+	if err := controllerutil.SetControllerReference(darp, service, r.scheme); err != nil {
+		log.Error(err, "Error set controller reference for server service")
+		return nil, err
+	}
+	return service, nil
 }
