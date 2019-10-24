@@ -311,9 +311,8 @@ func (r *ReconcileDarp) deploymentForDarp(darp *oktov1alpha1.Darp) (*appsv1.Depl
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name:            darp.Name,
-							Image:           darp.Spec.Image,
-							//Command:         []string{"/bin/sh", "-c", "sleep 3600"},
+							Name:  darp.Name,
+							Image: darp.Spec.Image,
 							ImagePullPolicy: corev1.PullAlways,
 							Ports: []corev1.ContainerPort{
 								{
