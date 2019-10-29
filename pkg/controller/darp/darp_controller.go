@@ -258,7 +258,8 @@ func (r *ReconcileDarp) serverCertsForDarp(darp *oktov1alpha1.Darp) (*corev1.Sec
 		log.Error(err, "Failed to load root certificates ")
 		return nil, err
 	}
-	crt, key, err := caCerts.generateCertificates(darp.Name)
+	caOu := fmt.Sprintf("%s.%s.svc", darp.Name, darp.Namespace)
+	crt, key, err := caCerts.generateCertificates(caOu)
 	if err != nil {
 		log.Error(err, "Failed to generate server certificates")
 		return nil, err

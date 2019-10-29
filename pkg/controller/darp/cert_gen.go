@@ -49,7 +49,7 @@ func (ca *CACerts) generateRootCerts() (err error) {
 	})
 
 	if err != nil {
-		log.Error(err, "failed to encode CA PEM to base64 ")
+		log.Error(err, "failed to encode CA PEM to base64")
 		return err
 	}
 	// Encode ca private key into base64 byte array
@@ -69,6 +69,7 @@ func (ca *CACerts) generateRootCerts() (err error) {
 }
 
 func (ca *CACerts) generateCertificates(serviceName string) (crt []byte, key []byte, err error) {
+	log.Info("Certificate OU", "ou", serviceName)
 	// Create certificate
 	cert := &x509.Certificate{
 		SerialNumber: big.NewInt(1658),
