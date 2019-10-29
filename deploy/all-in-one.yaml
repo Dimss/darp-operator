@@ -15,7 +15,7 @@ spec:
       serviceAccountName: darp-operator
       containers:
         - name: darp-operator
-          image: "docker.io/dimssss/darp-operator:0.1"
+          image: "docker.io/dimssss/darp-operator:0.2"
           command:
           - darp-operator
           imagePullPolicy: Always

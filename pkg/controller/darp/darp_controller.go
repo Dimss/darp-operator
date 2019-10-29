@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	oktov1alpha1 "github.com/darp-operator/pkg/apis/okto/v1alpha1"
@@ -397,8 +398,9 @@ func (r *ReconcileDarp) serviceForDarp(darp *oktov1alpha1.Darp) (*corev1.Service
 			Selector: map[string]string{"app": darp.Name},
 			Ports: []corev1.ServicePort{
 				{
-					Name: "https",
-					Port: 8080,
+					Name:       "https",
+					Port:       443,
+					TargetPort: intstr.IntOrString{IntVal: 8080},
 				},
 			},
 		},

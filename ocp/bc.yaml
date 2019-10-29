@@ -38,5 +38,5 @@ parameters:
   required: true
 - description: Specify version
   name: VERSION
-  value: "0.1"
+  value: "0.2"
   required: true
